@@ -19,9 +19,9 @@ type BqOutputConfig struct {
 	ProjectId      string `toml:"project_id"`
 	DatasetId      string `toml:"dataset_id"`
 	TableId        string `toml:"table_id"`
-	TickerInterval uint   `toml:"ticker_interval"`
 	FilePath       string `toml:"file_path"`
 	BqFilePath     string `toml:"bq_file_path"`
+	TickerInterval uint   `toml:"ticker_interval"`
 }
 
 type BqOutput struct {
@@ -49,6 +49,7 @@ func (bqo *BqOutput) Init(config interface{}) (err error) {
 func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	inChan := or.InChan()
 	tickerChan := or.Ticker()
+
 	buf := bytes.NewBuffer(nil)
 	f, _ := os.OpenFile(bqo.config.FilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	fw := bufio.NewWriter(f)
@@ -67,29 +68,27 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				break
 			}
 			err = nil
+
 			pl = []byte(pack.Message.GetPayload())
 			if _, err = fw.Write(pl); err != nil {
 				logError(or, "Write to File", err)
 			}
-
 			if _, err = buf.Write(pl); err != nil {
 				logError(or, "Write to Buffer", err)
 			}
 			pack.Recycle()
+
 		case <-tickerChan:
 			logUpdate("Ticker fired, uploading.")
-			err := bqo.UploadBuffer(buf)
-			if err != nil {
-				logError(or, "Upload Buffer", err)
-				fw.Flush() // Forces buffered writes into file
 
+			if err = bqo.UploadBuffer(buf); err != nil {
+				logError(or, "Upload Buffer", err)
 				if errFile := bqo.UploadFile(fw); errFile != nil {
 					logError(or, "Upload File", errFile)
 				}
 			}
-
 			cleanUp(f, buf)
-			logUpdate("Uploading successful")
+			logUpdate("Upload successful")
 		}
 	}
 	logUpdate("Shutting down BQ output runner.")
@@ -120,8 +119,11 @@ func readData(i interface{}) {
 
 func (bqo *BqOutput) Upload(i interface{}) (err error) {
 	var data []byte
-	tableId := bqo.config.TableId
-	_ = bqo.bu.CreateTable(tableId, schema)
+	currentDate := t.Local().Format("2006-01-02 15:00:00 +0800")[0:10]
+
+	datedtable := bqo.config.TableId + currentDate
+	// TODO check if creation date is current date?
+	_ = bqo.bu.CreateTable(datedtable, schema)
 
 	list := make([]map[string]bigquery.JsonValue, 0)
 	data, _ = readData(i)
@@ -130,13 +132,16 @@ func (bqo *BqOutput) Upload(i interface{}) (err error) {
 		list = append(list, bq.BytesToBqJsonRow(data))
 	}
 
-	return uploader.InsertRows(tableId, list)
+	return uploader.InsertRows(datedtable, list)
 }
 
+// Wrapper for Upload from File
 func (bqo *BqOutput) UploadFile(fw *bufio.Reader) (err error) {
+	fw.Flush() // Forces buffered writes into file
 	return bqo.Upload(fw)
 }
 
+// Wrapper for Upload from Buffer
 func (bqo *BqOutput) UploadBuffer(buf *bytes.Buffer) (err error) {
 	return bqo.Upload(buf)
 }
