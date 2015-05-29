@@ -83,8 +83,8 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				logError(or, "Upload Buffer", err)
 				fw.Flush() // Forces buffered writes into file
 
-				if fileUploadErr := bqo.UploadFile(fw); fileUploadErr != nil {
-					logError(or, "Upload File", fileUploadErr)
+				if errFile := bqo.UploadFile(fw); errFile != nil {
+					logError(or, "Upload File", errFile)
 				}
 			}
 
