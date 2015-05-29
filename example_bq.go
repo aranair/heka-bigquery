@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -32,16 +31,10 @@ func main() {
 
 	for len(data) > 0 {
 		data, _ = buf.ReadBytes('\n')
-		list = append(list, byteToBqRow(data))
+		list = append(list, bq.BytesToBqJsonRow(data))
 	}
 	fmt.Println("Done")
 
 	insertErr := uploader.InsertRows("test2", list)
 	fmt.Println(insertErr)
-}
-
-func byteToBqRow(data []byte) map[string]bigquery.JsonValue {
-	rowData := make(map[string]bigquery.JsonValue)
-	json.Unmarshal(data, &rowData)
-	return rowData
 }

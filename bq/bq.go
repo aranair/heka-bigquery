@@ -98,17 +98,17 @@ func (bu *BqUploader) SendInsert(tableId string, rows []*bigquery.TableDataInser
 
 // InsertRow inserts a new row into the desired project, dataset and table or returns an error
 func (bu *BqUploader) InsertRow(tableId string, rowData map[string]bigquery.JsonValue) error {
-
-	// jsonrows := make(map[string]bigquery.jsonvalue)
-	// for key, value := range rowdata {
-	// 	jsonrows[key] = bigquery.jsonvalue(value)
-	// }
 	rows := []*bigquery.TableDataInsertAllRequestRows{
 		{
 			Json: rowData,
 		},
 	}
-
 	err := bu.SendInsert(tableId, rows)
 	return err
+}
+
+func BytesToBqJsonRow(data []byte) map[string]bigquery.JsonValue {
+	rowData := make(map[string]bigquery.JsonValue)
+	json.Unmarshal(data, &rowData)
+	return rowData
 }
