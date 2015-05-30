@@ -92,6 +92,10 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	oldDay = time.Now().Local()
 
+	if err = bqo.bu.CreateTable(bqo.tableName(oldDay), bqo.schema); err != nil {
+		logError(or, "Initialize Table", err)
+	}
+
 	for ok {
 		// Time Check
 		if now := time.Now().Local(); isNewDay(oldDay, now) {
@@ -100,7 +104,7 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			f, _ = os.OpenFile(fp, fileOp, 0666)
 
 			if err = bqo.bu.CreateTable(bqo.tableName(now), bqo.schema); err != nil {
-				logError(or, "Create Table", err)
+				logError(or, "Create New Day Table", err)
 			}
 			oldDay = now
 		}
@@ -113,6 +117,7 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			}
 			err = nil
 			payload = []byte(pack.Message.GetPayload())
+
 			if _, err = f.Write(payload); err != nil {
 				logError(or, "Write to File", err)
 			}
