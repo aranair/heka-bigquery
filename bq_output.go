@@ -123,16 +123,12 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			pack.Recycle()
 
 		case <-tickerChan:
-			logUpdate("Ticker fired, uploading.")
-
 			f.Close() // close file for uploading
 			bqo.UploadAndReset(buf, fp, oldDay, or)
 			f, _ = os.OpenFile(fp, fileOp, 0666)
-
-			logUpdate("Upload successful")
 		}
 	}
-	logUpdate("Shutting down BQ output runner.")
+	logUpdate(or, "Shutting down BQ output runner.")
 	return
 }
 
@@ -157,13 +153,20 @@ func readData(i interface{}) {
 }
 
 func (bqo *BqOutput) UploadAndReset(buf *bytes.Buffer, path string, d time.Time, or OutputRunner) {
+	logUpdate(or, "Ticker fired, uploading.")
+
 	tn := bqo.tableName(d)
 	if err = bqo.Upload(buf, tn); err != nil {
 		logError(or, "Upload Buffer", err)
 		if err = bqo.UploadFile(path, tn); err != nil {
 			logError(or, "Upload File", err)
+		} else {
+			logUpdate(or, "Upload File Successful")
 		}
+	} else {
+		logUpdate(or, "Upload Buffer Successful")
 	}
+
 	// Cleanup and Reset
 	buf.Reset()
 	_ = os.Remove(path)
