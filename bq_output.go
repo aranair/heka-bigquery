@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"google.golang.org/api/bigquery/v2"
 
@@ -19,12 +20,15 @@ type BqOutputConfig struct {
 	ProjectId      string `toml:"project_id"`
 	DatasetId      string `toml:"dataset_id"`
 	TableId        string `toml:"table_id"`
-	FilePath       string `toml:"file_path"`
-	BqFilePath     string `toml:"bq_file_path"`
+	PemFilePath    string `toml:"pem_file_path"`
+	SchemaFilePath string `toml:"schema_file_path"`
+	BufferPath     string `toml:"buffer_path"`
+	BufferFile     string `toml:"buffer_file"`
 	TickerInterval uint   `toml:"ticker_interval"`
 }
 
 type BqOutput struct {
+	schema []byte
 	config *BqOutputConfig
 	bu     *bqUploader
 }
@@ -36,63 +40,145 @@ func (bqo *BqOutput) ConfigStruct() interface{} {
 func (bqo *BqOutput) Init(config interface{}) (err error) {
 	bqo.config = config.(*BqOutputConfig)
 
-	pkey, _ := ioutil.ReadFile("big_query.pem")
-	schema, _ := ioutil.ReadFile("test_schema.json")
+	pkey, _ := ioutil.ReadFile(bqo.config.PemFilePath)
+	schema, _ := ioutil.ReadFile(bqo.config.SchemaPath)
 
-	// TODO: change to pkey, projectId, datasetId in production
-	bu := bq.NewBqUploader(pkey, "wego-cloud", "analytics_golang")
+	bu := bq.NewBqUploader(pkey, bqo.config.ProjectId, bqo.config.DatasetId)
 
+	bqo.schema = schema
 	bqo.bu = bu
 	return
 }
 
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func mkDirectories(path string) {
+	ok, err := exists(path)
+	if ok, err := exists(path); !ok {
+		_ := os.MkdirAll(path, 0666)
+	}
+}
+
+func (bqo *BqOutput) tableName(d time.Time) string {
+	return bqo.config.TableId + formatDate(d)
+}
+
 func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
-	inChan := or.InChan()
-	tickerChan := or.Ticker()
-
-	buf := bytes.NewBuffer(nil)
-	f, _ := os.OpenFile(bqo.config.FilePath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
-	fw := bufio.NewWriter(f)
-
 	var (
-		pack *PipelinePack
-		pl   []byte
-		ok   = true
+		pack      *PipelinePack
+		payload   []byte
+		ok        = true
+		f         *os.File
+		savedDate time.Time
+		now       time.Time
 	)
 
+	inChan := or.InChan()
+	tickerChan := or.Ticker()
+	buf := bytes.NewBuffer(nil)
+	fileOp := os.O_CREATE | os.O_APPEND | os.O_WRONLY
+
+	MkDirectories(bqo.config.BufferPath)
+	fp := bqo.config.BufferPath + "/" + bqo.config.BufferFile // form full path
+	f, _ = os.OpenFile(fp, fileOp, 0666)
+
+	oldDay = time.Now().Local()
+
 	for ok {
-		// TODO: if midnight -> force upload
+		now = time.Now().Local()
+		if isNewDay(oldDay, now) {
+			f.Close() // close file for uploading
+			bqo.UploadAndReset(buf, fp, oldDay, or)
+			f, _ = os.OpenFile(fp, fileOp, 0666)
+
+			// Create next day's table
+			if err = bqo.bu.CreateTable(bqo.tableName(now), bqo.schema); err != nil {
+				logError(or, "Create Table", err)
+			}
+			oldDay = now
+		}
+
 		select {
 		case pack, ok = <-inChan:
 			if !ok {
 				break
 			}
 			err = nil
-
-			pl = []byte(pack.Message.GetPayload())
-			if _, err = fw.Write(pl); err != nil {
+			payload = []byte(pack.Message.GetPayload())
+			if _, err = f.Write(payload); err != nil {
 				logError(or, "Write to File", err)
 			}
-			if _, err = buf.Write(pl); err != nil {
+
+			if _, err = buf.Write(payload); err != nil {
 				logError(or, "Write to Buffer", err)
 			}
 			pack.Recycle()
 
 		case <-tickerChan:
 			logUpdate("Ticker fired, uploading.")
+			f.Close() // close file for uploading
+			bqo.UploadAndReset(buf, fp, oldDay, or)
+			f, _ = os.OpenFile(fp, fileOp, 0666)
 
-			if err = bqo.UploadBuffer(buf); err != nil {
-				logError(or, "Upload Buffer", err)
-				if errFile := bqo.UploadFile(fw); errFile != nil {
-					logError(or, "Upload File", errFile)
-				}
-			}
-			cleanUp(f, buf)
 			logUpdate("Upload successful")
 		}
 	}
 	logUpdate("Shutting down BQ output runner.")
 	return
+}
+
+// Prepares data and uploads them to the BigQuery Table.
+func (bqo *BqOutput) Upload(i interface{}, tableName string) (err error) {
+	var data []byte
+	list := make([]map[string]bigquery.JsonValue, 0)
+
+	data, _ = readData(i)
+	for len(data) > 0 {
+		data, _ = readData(i)
+		list = append(list, bq.BytesToBqJsonRow(data))
+	}
+	return bqo.bu.InsertRows(tableName, list)
+}
+
+func readData(i interface{}) {
+	switch v := i.(type) {
+	default:
+		return v.ReadBytes('\n')
+	}
+}
+
+func (bqo *BqOutput) UploadAndReset(buf *bytes.Buffer, path string, d time.Time, or OutputRunner) {
+	tn := bqo.tableName(d)
+	if err = bqo.Upload(buf, tn); err != nil {
+		logError(or, "Upload Buffer", err)
+		if err = bqo.UploadFile(path, tn); err != nil {
+			logError(or, "Upload File", err)
+		}
+	}
+	// Cleanup and Reset
+	buf.Reset()
+	_ = os.Remove(path)
+}
+
+func (bqo *BqOutput) UploadFile(path string, tableName string) (err error) {
+	f, _ := os.Open(path)
+	fr := bufio.NewReader(f)
+	err := bqo.Upload(fr, tableName)
+	f.Close()
+	return
+}
+
+func formatDate(t time.Time) string {
+	return fmt.Sprintf("%d%d%d", t.Year(), t.Month(), t.Day())
 }
 
 func logUpdate(or OutputRunner, title string) {
@@ -103,47 +189,8 @@ func logError(or OutputRunner, title string, err error) {
 	or.LogMessage(fmt.Sprintf("%s - Error -: %s", title, err))
 }
 
-func cleanUp(f *os.File, b *bytes.buffer) {
-	f.Close()
-	f.Truncate(0)
-	f.Open()
-	buf.reset()
-}
-
-func readData(i interface{}) {
-	switch v := i.(type) {
-	default:
-		return v.ReadBytes('\n')
-	}
-}
-
-func (bqo *BqOutput) Upload(i interface{}) (err error) {
-	var data []byte
-	currentDate := t.Local().Format("2006-01-02 15:00:00 +0800")[0:10]
-
-	datedtable := bqo.config.TableId + currentDate
-	// TODO check if creation date is current date?
-	_ = bqo.bu.CreateTable(datedtable, schema)
-
-	list := make([]map[string]bigquery.JsonValue, 0)
-	data, _ = readData(i)
-	for len(data) > 0 {
-		data, _ = readData(i)
-		list = append(list, bq.BytesToBqJsonRow(data))
-	}
-
-	return uploader.InsertRows(datedtable, list)
-}
-
-// Wrapper for Upload from File
-func (bqo *BqOutput) UploadFile(fw *bufio.Reader) (err error) {
-	fw.Flush() // Forces buffered writes into file
-	return bqo.Upload(fw)
-}
-
-// Wrapper for Upload from Buffer
-func (bqo *BqOutput) UploadBuffer(buf *bytes.Buffer) (err error) {
-	return bqo.Upload(buf)
+func isNewDay(t1 time.Time, t2 time.Time) bool {
+	return (t1.Year() != t2.Year() || t1.Month() != t2.Month() || t1.Day() != t2.Day())
 }
 
 func init() {
