@@ -79,7 +79,6 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		ok        = true
 		f         *os.File
 		savedDate time.Time
-		now       time.Time
 	)
 
 	inChan := or.InChan()
@@ -94,19 +93,19 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	oldDay = time.Now().Local()
 
 	for ok {
-		now = time.Now().Local()
-		if isNewDay(oldDay, now) {
-			f.Close() // close file for uploading
+		// Time Check
+		if now := time.Now().Local(); isNewDay(oldDay, now) {
+			f.Close() // Close file for uploading
 			bqo.UploadAndReset(buf, fp, oldDay, or)
 			f, _ = os.OpenFile(fp, fileOp, 0666)
 
-			// Create next day's table
 			if err = bqo.bu.CreateTable(bqo.tableName(now), bqo.schema); err != nil {
 				logError(or, "Create Table", err)
 			}
 			oldDay = now
 		}
 
+		// Channel Listeners
 		select {
 		case pack, ok = <-inChan:
 			if !ok {
@@ -125,6 +124,7 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 		case <-tickerChan:
 			logUpdate("Ticker fired, uploading.")
+
 			f.Close() // close file for uploading
 			bqo.UploadAndReset(buf, fp, oldDay, or)
 			f, _ = os.OpenFile(fp, fileOp, 0666)
