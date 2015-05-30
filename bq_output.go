@@ -87,6 +87,7 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	fileOp := os.O_CREATE | os.O_APPEND | os.O_WRONLY
 
 	MkDirectories(bqo.config.BufferPath)
+
 	fp := bqo.config.BufferPath + "/" + bqo.config.BufferFile // form full path
 	f, _ = os.OpenFile(fp, fileOp, 0666)
 
@@ -133,6 +134,7 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			f, _ = os.OpenFile(fp, fileOp, 0666)
 		}
 	}
+
 	logUpdate(or, "Shutting down BQ output runner.")
 	return
 }
