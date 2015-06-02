@@ -10,7 +10,7 @@ import (
 
 	"google.golang.org/api/bigquery/v2"
 
-	"./bq"
+	"github.com/aranair/heka-bigquery/bq"
 
 	. "github.com/mozilla-services/heka/pipeline"
 )
