@@ -1,0 +1,14 @@
+[analytics-visits-input-kafka]
+type = "KafkaInput"
+topic = "analytics-visits"
+addrs = ["kafka-a-1.bezurk.org:9092", "kafka-b-1.bezurk.org:9092"]
+
+[analytics-visits-output-bq]
+type = "BqOutput"
+message_matcher = "Logger == 'analytics-visits-input-kafka'"
+project_id = "wego-cloud"
+dataset_id = "go_analytics_visits"
+table_id = "visits"
+buffer_path = "/var/buffer/bq"
+buffer_file = "analytics_visits"
+ticker_interval = 5
