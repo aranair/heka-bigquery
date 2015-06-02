@@ -30,7 +30,7 @@ type BqOutputConfig struct {
 type BqOutput struct {
 	schema []byte
 	config *BqOutputConfig
-	bu     *bqUploader
+	bu     *bq.BqUploader
 }
 
 func (bqo *BqOutput) ConfigStruct() interface{} {
@@ -41,7 +41,7 @@ func (bqo *BqOutput) Init(config interface{}) (err error) {
 	bqo.config = config.(*BqOutputConfig)
 
 	pkey, _ := ioutil.ReadFile(bqo.config.PemFilePath)
-	schema, _ := ioutil.ReadFile(bqo.config.SchemaPath)
+	schema, _ := ioutil.ReadFile(bqo.config.SchemaFilePath)
 
 	bu := bq.NewBqUploader(pkey, bqo.config.ProjectId, bqo.config.DatasetId)
 
@@ -64,7 +64,7 @@ func exists(path string) (bool, error) {
 func mkDirectories(path string) {
 	ok, err := exists(path)
 	if ok, err := exists(path); !ok {
-		_ := os.MkdirAll(path, 0666)
+		_ = os.MkdirAll(path, 0666)
 	}
 }
 
@@ -86,12 +86,12 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	buf := bytes.NewBuffer(nil)
 	fileOp := os.O_CREATE | os.O_APPEND | os.O_WRONLY
 
-	MkDirectories(bqo.config.BufferPath)
+	mkDirectories(bqo.config.BufferPath)
 
 	fp := bqo.config.BufferPath + "/" + bqo.config.BufferFile // form full path
 	f, _ = os.OpenFile(fp, fileOp, 0666)
 
-	oldDay = time.Now().Local()
+	oldDay := time.Now().Local()
 
 	if err = bqo.bu.CreateTable(bqo.tableName(oldDay), bqo.schema); err != nil {
 		logError(or, "Initialize Table", err)
@@ -152,11 +152,14 @@ func (bqo *BqOutput) Upload(i interface{}, tableName string) (err error) {
 	return bqo.bu.InsertRows(tableName, list)
 }
 
-func readData(i interface{}) {
+func readData(i interface{}) (line []byte, err error) {
 	switch v := i.(type) {
-	default:
-		return v.ReadBytes('\n')
+	case *bytes.Buffer:
+		line, err = v.ReadBytes('\n')
+	case *bufio.Reader:
+		line, err = v.ReadBytes('\n')
 	}
+	return
 }
 
 func (bqo *BqOutput) UploadAndReset(buf *bytes.Buffer, path string, d time.Time, or OutputRunner) {
@@ -182,7 +185,7 @@ func (bqo *BqOutput) UploadAndReset(buf *bytes.Buffer, path string, d time.Time,
 func (bqo *BqOutput) UploadFile(path string, tableName string) (err error) {
 	f, _ := os.Open(path)
 	fr := bufio.NewReader(f)
-	err := bqo.Upload(fr, tableName)
+	err = bqo.Upload(fr, tableName)
 	f.Close()
 	return
 }
