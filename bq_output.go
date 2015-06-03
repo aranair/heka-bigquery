@@ -98,11 +98,13 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	for ok {
 		// Time Check
-		if now := time.Now().Local(); isNewDay(oldDay, now) && buf.Len() > 0 {
+		if now := time.Now().Local(); isNewDay(oldDay, now) {
 
-			f.Close() // Close file for uploading
-			bqo.UploadAndReset(buf, fp, oldDay, or)
-			f, _ = os.OpenFile(fp, fileOp, 0666)
+			if buf.Len() > 0 {
+				f.Close() // Close file for uploading
+				bqo.UploadAndReset(buf, fp, oldDay, or)
+				f, _ = os.OpenFile(fp, fileOp, 0666)
+			}
 
 			if err = bqo.bu.CreateTable(bqo.tableName(now), bqo.schema); err != nil {
 				logError(or, "Create New Day Table", err)
@@ -129,9 +131,11 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			pack.Recycle()
 
 		case <-tickerChan:
-			f.Close() // close file for uploading
-			bqo.UploadAndReset(buf, fp, oldDay, or)
-			f, _ = os.OpenFile(fp, fileOp, 0666)
+			if buf.Len() > 0 {
+				f.Close() // Close file for uploading
+				bqo.UploadAndReset(buf, fp, oldDay, or)
+				f, _ = os.OpenFile(fp, fileOp, 0666)
+			}
 		}
 	}
 
