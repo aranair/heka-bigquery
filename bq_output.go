@@ -80,7 +80,6 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		oldDay  time.Time
 	)
 
-	inChan := or.InChan()
 	tickerChan := or.Ticker()
 	buf := bytes.NewBuffer(nil)
 	fileOp := os.O_CREATE | os.O_APPEND | os.O_WRONLY
@@ -96,7 +95,10 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		logError(or, "Initialize Table", err)
 	}
 
-	for ok {
+	for pack := range or.InChan() {
+		payload = []byte(pack.Message.GetPayload())
+		pack.Recycle()
+
 		// Time Check
 		if now := time.Now().Local(); isNewDay(oldDay, now) {
 
@@ -112,30 +114,19 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			oldDay = now
 		}
 
-		// Channel Listeners
-		select {
-		case pack, ok = <-inChan:
-			if !ok {
-				break
-			}
-			err = nil
-			payload = []byte(pack.Message.GetPayload())
+		// Write Stuff
+		if _, err = f.Write(payload); err != nil {
+			logError(or, "Write to File", err)
+		}
+		if _, err = buf.Write(payload); err != nil {
+			logError(or, "Write to Buffer", err)
+		}
 
-			if _, err = f.Write(payload); err != nil {
-				logError(or, "Write to File", err)
-			}
-
-			if _, err = buf.Write(payload); err != nil {
-				logError(or, "Write to Buffer", err)
-			}
-			pack.Recycle()
-
-		case <-tickerChan:
-			if buf.Len() > 0 {
-				f.Close() // Close file for uploading
-				bqo.UploadAndReset(buf, fp, oldDay, or)
-				f, _ = os.OpenFile(fp, fileOp, 0666)
-			}
+		// Upload Stuff (1mb)
+		if buf.Len() > 1000000 {
+			f.Close() // Close file for uploading
+			bqo.UploadAndReset(buf, fp, oldDay, or)
+			f, _ = os.OpenFile(fp, fileOp, 0666)
 		}
 	}
 
@@ -148,9 +139,11 @@ func (bqo *BqOutput) Upload(i interface{}, tableName string) (err error) {
 	var data []byte
 	list := make([]map[string]bigquery.JsonValue, 0)
 
-	data, _ = readData(i)
-	for len(data) > 0 {
+	for {
 		data, _ = readData(i)
+		if len(data) == 0 {
+			break
+		}
 		list = append(list, bq.BytesToBqJsonRow(data))
 	}
 	return bqo.bu.InsertRows(tableName, list)
