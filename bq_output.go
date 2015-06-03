@@ -1,4 +1,4 @@
-jkjkpackage hbq
+package hbq
 
 import (
 	"bufio"
