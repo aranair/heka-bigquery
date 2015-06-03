@@ -1,4 +1,4 @@
-package hbq
+jkjkpackage hbq
 
 import (
 	"bufio"
@@ -62,8 +62,7 @@ func exists(path string) (bool, error) {
 }
 
 func mkDirectories(path string) {
-	ok, err := exists(path)
-	if ok, err := exists(path); !ok {
+	if ok, _ := exists(path); !ok {
 		_ = os.MkdirAll(path, 0666)
 	}
 }
@@ -74,11 +73,11 @@ func (bqo *BqOutput) tableName(d time.Time) string {
 
 func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var (
-		pack      *PipelinePack
-		payload   []byte
-		ok        = true
-		f         *os.File
-		savedDate time.Time
+		pack    *PipelinePack
+		payload []byte
+		ok      = true
+		f       *os.File
+		oldDay  time.Time
 	)
 
 	inChan := or.InChan()
@@ -91,7 +90,7 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	fp := bqo.config.BufferPath + "/" + bqo.config.BufferFile // form full path
 	f, _ = os.OpenFile(fp, fileOp, 0666)
 
-	oldDay := time.Now().Local()
+	oldDay = time.Now().Local()
 
 	if err = bqo.bu.CreateTable(bqo.tableName(oldDay), bqo.schema); err != nil {
 		logError(or, "Initialize Table", err)
@@ -99,7 +98,8 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 	for ok {
 		// Time Check
-		if now := time.Now().Local(); isNewDay(oldDay, now) {
+		if now := time.Now().Local(); isNewDay(oldDay, now) && buf.Len() > 0 {
+
 			f.Close() // Close file for uploading
 			bqo.UploadAndReset(buf, fp, oldDay, or)
 			f, _ = os.OpenFile(fp, fileOp, 0666)
@@ -166,9 +166,9 @@ func (bqo *BqOutput) UploadAndReset(buf *bytes.Buffer, path string, d time.Time,
 	logUpdate(or, "Ticker fired, uploading.")
 
 	tn := bqo.tableName(d)
-	if err = bqo.Upload(buf, tn); err != nil {
+	if err := bqo.Upload(buf, tn); err != nil {
 		logError(or, "Upload Buffer", err)
-		if err = bqo.UploadFile(path, tn); err != nil {
+		if err := bqo.UploadFile(path, tn); err != nil {
 			logError(or, "Upload File", err)
 		} else {
 			logUpdate(or, "Upload File Successful")
