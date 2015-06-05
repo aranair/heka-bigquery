@@ -73,14 +73,11 @@ func (bqo *BqOutput) tableName(d time.Time) string {
 
 func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var (
-		pack    *PipelinePack
 		payload []byte
-		ok      = true
 		f       *os.File
 		oldDay  time.Time
 	)
 
-	tickerChan := or.Ticker()
 	buf := bytes.NewBuffer(nil)
 	fileOp := os.O_CREATE | os.O_APPEND | os.O_WRONLY
 
