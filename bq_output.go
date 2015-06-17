@@ -185,7 +185,7 @@ func (bqo *BqOutput) UploadFile(path string, tableName string) (err error) {
 }
 
 func formatDate(t time.Time) string {
-	return fmt.Sprintf("%d%d%d", t.Year(), t.Month(), t.Day())
+	return t.Format("20060102")
 }
 
 func logUpdate(or OutputRunner, title string) {
