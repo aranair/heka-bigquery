@@ -120,7 +120,7 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 
 		// Upload Stuff (1mb)
-		if buf.Len() > 1000000 {
+		if buf.Len() > 100000 {
 			f.Close() // Close file for uploading
 			bqo.UploadAndReset(buf, fp, oldDay, or)
 			f, _ = os.OpenFile(fp, fileOp, 0666)
