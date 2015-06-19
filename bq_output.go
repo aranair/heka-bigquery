@@ -98,15 +98,12 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 
 		// Time Check
 		if now := time.Now().Local(); isNewDay(oldDay, now) {
-
 			if buf.Len() > 0 {
 				f.Close() // Close file for uploading
 				bqo.UploadAndReset(buf, fp, oldDay, or)
 				f, _ = os.OpenFile(fp, fileOp, 0666)
 			}
-
-			logUpdate(or, "Midnight ticked. Creating new table")
-			logUpdate(or, bqo.tableName(now))
+			logUpdate(or, "Midnight ticked. Creating new table: "+bqo.tableName(now))
 
 			if err = bqo.bu.CreateTable(bqo.tableName(now), bqo.schema); err != nil {
 				logError(or, "Create New Day Table", err)

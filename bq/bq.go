@@ -64,6 +64,15 @@ func (bu *BqUploader) CreateTable(tableId string, schema []byte) error {
 		if err != nil {
 			return err
 		}
+
+		// Block till table is created
+		for {
+			_, err = bq.Tables.Get(bu.projectId, bu.datasetId, tableId).Do()
+			if err == nil {
+				break
+			}
+		}
+
 		fmt.Println("Done creating table.")
 	}
 	return nil
