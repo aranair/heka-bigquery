@@ -46,7 +46,7 @@ func (bu *BqUploader) CreateTable(tableId string, schema []byte) error {
 	bq := bu.bq
 	_, err := bq.Tables.Get(bu.projectId, bu.datasetId, tableId).Do()
 
-	// if error -> table doesn't exist -> create
+	// // if error -> table doesn't exist -> create
 	if err != nil {
 		var tfs bigquery.TableSchema
 		json.Unmarshal(schema, &tfs)

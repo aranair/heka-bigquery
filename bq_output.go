@@ -105,6 +105,9 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 				f, _ = os.OpenFile(fp, fileOp, 0666)
 			}
 
+			logUpdate(or, "Midnight ticked. Creating new table")
+			logUpdate(or, bqo.tableName(now))
+
 			if err = bqo.bu.CreateTable(bqo.tableName(now), bqo.schema); err != nil {
 				logError(or, "Create New Day Table", err)
 			}
@@ -120,7 +123,7 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		}
 
 		// Upload Stuff (1mb)
-		if buf.Len() > 100000 {
+		if buf.Len() > 1000 {
 			f.Close() // Close file for uploading
 			bqo.UploadAndReset(buf, fp, oldDay, or)
 			f, _ = os.OpenFile(fp, fileOp, 0666)
@@ -157,9 +160,9 @@ func readData(i interface{}) (line []byte, err error) {
 }
 
 func (bqo *BqOutput) UploadAndReset(buf *bytes.Buffer, path string, d time.Time, or OutputRunner) {
-	logUpdate(or, "Ticker fired, uploading.")
-
 	tn := bqo.tableName(d)
+	logUpdate(or, "Ticker fired, uploading"+tn)
+
 	if err := bqo.Upload(buf, tn); err != nil {
 		logError(or, "Upload Buffer", err)
 		if err := bqo.UploadFile(path, tn); err != nil {
@@ -185,7 +188,7 @@ func (bqo *BqOutput) UploadFile(path string, tableName string) (err error) {
 }
 
 func formatDate(t time.Time) string {
-	return t.Format("20060102")
+	return fmt.Sprintf(t.Format("20060102"))
 }
 
 func logUpdate(or OutputRunner, title string) {
