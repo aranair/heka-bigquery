@@ -43,7 +43,6 @@ func NewBqUploader(pkey []byte, projectId string, datasetId string) *BqUploader 
 }
 
 func (bu *BqUploader) CreateTable(tableId string, schema []byte) error {
-	fmt.Println(string(schema))
 	bq := bu.bq
 	_, err := bq.Tables.Get(bu.projectId, bu.datasetId, tableId).Do()
 
@@ -65,7 +64,7 @@ func (bu *BqUploader) CreateTable(tableId string, schema []byte) error {
 			return err
 		}
 
-		fmt.Println("Done creating table.")
+		fmt.Println("Done creating table: " + tableId)
 	}
 	return nil
 }
@@ -73,11 +72,11 @@ func (bu *BqUploader) CreateTable(tableId string, schema []byte) error {
 func (bu *BqUploader) InsertRows(tableId string, list []map[string]bigquery.JsonValue) error {
 	rows := make([]*bigquery.TableDataInsertAllRequestRows, 0)
 	for i, row := range list {
-		fmt.Println(i)
 		rows = append(rows, &bigquery.TableDataInsertAllRequestRows{
 			Json: row,
 		})
 	}
+	fmt.Println("List size: " + len(list))
 	err := bu.SendInsert(tableId, rows)
 	return err
 }
