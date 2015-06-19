@@ -43,6 +43,7 @@ func NewBqUploader(pkey []byte, projectId string, datasetId string) *BqUploader 
 }
 
 func (bu *BqUploader) CreateTable(tableId string, schema []byte) error {
+	fmt.Println(string(schema))
 	bq := bu.bq
 	_, err := bq.Tables.Get(bu.projectId, bu.datasetId, tableId).Do()
 
