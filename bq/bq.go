@@ -72,7 +72,7 @@ func (bu *BqUploader) CreateTable(tableId string, schema []byte) error {
 
 func (bu *BqUploader) InsertRows(tableId string, list []map[string]bigquery.JsonValue) error {
 	rows := make([]*bigquery.TableDataInsertAllRequestRows, 0)
-	for i, row := range list {
+	for _, row := range list {
 		rows = append(rows, &bigquery.TableDataInsertAllRequestRows{
 			Json: row,
 		})
