@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -76,7 +77,7 @@ func (bu *BqUploader) InsertRows(tableId string, list []map[string]bigquery.Json
 			Json: row,
 		})
 	}
-	fmt.Println("List size: " + len(list))
+	fmt.Println("List size: " + strconv.Itoa(len(list)))
 	err := bu.SendInsert(tableId, rows)
 	return err
 }
