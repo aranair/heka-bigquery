@@ -1,13 +1,12 @@
 # heka-bigquery
-Heka output plugin for persisting messages from the data pipeline to BigQuery. It buffers into a variable + file locally and uploads periodically to BigQuery based on a file size limit. Used in Wego. 
+Heka output plugin for persisting messages from the data pipeline to BigQuery. 
 
-Consumes data from a Kafka topic and stores into variable + file.
-
-Uploads periodically up to BigQuery from file size.
+It consumes data from a Kafka Topic into a buffer variable + local file(for backup) and uploads periodically to BigQuery when the buffer is of a certain file size. 
 
 Contains a ticker that checks for midnight and creates new tables daily in BigQuery. The intervals are in the code as constants.
 
-Table names in BigQuery will {dataset_id}/{table_id}{date_stamp}. date_stamp formats as such: 20151230
+This plugin is currently used in Wego.com
+
 
 ## Configuration
 Uses toml (heka plugin default) for configuration. See `heka_config.toml.sample` for reference.
@@ -15,6 +14,8 @@ Uses toml (heka plugin default) for configuration. See `heka_config.toml.sample`
 Bigquery schema file is specified by a json file. See `realtime_log.schema.sample` for reference.
 
 Private key for BigQuery is specified by a pkcs12 format PEM file that was converted (password removed) from the p12 file originally obtained from developer's console: `https://console.developers.google.com/project/{project_id}/apiui/credential`. More information here: https://www.openssl.org/docs/apps/pkcs12.html.
+
+Table names in BigQuery will {dataset_id}/{table_id}{date_stamp}. date_stamp formats as such: 20151230
 
 ## Sample TOML file (with Kafka as input source):
 
