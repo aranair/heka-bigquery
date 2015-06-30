@@ -1,14 +1,14 @@
-[analytics-visits-input-kafka]
+[realtime-log-input-kafka]
 type = "KafkaInput"
-topic = "analytics-visits"
+topic = "realtime-log"
 addrs = ["kafka-a-1.bezurk.org:9092", "kafka-b-1.bezurk.org:9092"]
 
-[analytics-visits-output-bq]
+[realtime-log-output-bq]
 type = "BqOutput"
-message_matcher = "Logger == 'analytics-visits-input-kafka'"
-project_id = "wego-cloud"
-dataset_id = "go_analytics_visits"
-table_id = "visits"
+message_matcher = "Logger == 'realtime-log-input-kafka'"
+project_id = "org-project"
+dataset_id = "go_realtime_log"
+table_id = "log"
 buffer_path = "/var/buffer/bq"
-buffer_file = "analytics_visits"
+buffer_file = "realtime_log"
 ticker_interval = 5
