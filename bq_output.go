@@ -58,6 +58,7 @@ func (bqo *BqOutput) Init(config interface{}) (err error) {
 
 func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var (
+		pack    *PipelinePack
 		payload []byte
 		f       *os.File
 		oldDay  time.Time
