@@ -7,6 +7,8 @@ Uploads periodically up to BigQuery from file size.
 
 Contains a ticker that checks for midnight and creates new tables daily in BigQuery. The intervals are in the code as constants.
 
+Table names in BigQuery will {dataset_id}/{table_id}{date_stamp}. date_stamp formats as such: 20151230
+
 ## Configuration
 Uses toml (heka plugin default) for configuration. See `heka_config.toml.sample` for reference.
 
