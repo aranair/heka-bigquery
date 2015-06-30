@@ -23,6 +23,8 @@ message_matcher = "Logger == 'realtime-log-input-kafka'"
 project_id = "org-project"
 dataset_id = "go_realtime_log"
 table_id = "log"
+schema_file_path = "/var/apps/shared/config/realtime_log.schema"
+pem_file_path = "/var/apps/shared/config/big_query.pem"
 buffer_path = "/var/buffer/bq"
 buffer_file = "realtime_log"
 ticker_interval = 5
