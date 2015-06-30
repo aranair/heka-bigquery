@@ -89,7 +89,6 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 			if !ok {
 				break
 			}
-
 			payload = []byte(pack.Message.GetPayload())
 			pack.Recycle()
 
