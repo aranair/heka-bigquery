@@ -15,6 +15,12 @@ import (
 	. "github.com/mozilla-services/heka/pipeline"
 )
 
+const INTERVAL_PERIOD time.Duration = 24 * time.Hour
+const HOUR_TO_TICK int = 00
+const MINUTE_TO_TICK int = 00
+const SECOND_TO_TICK int = 00
+const MAX_BUFFER_SIZE = 1000
+
 // Id is actually the datasetId
 type BqOutputConfig struct {
 	ProjectId      string `toml:"project_id"`
@@ -50,33 +56,17 @@ func (bqo *BqOutput) Init(config interface{}) (err error) {
 	return
 }
 
-func exists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
-
-func mkDirectories(path string) {
-	if ok, _ := exists(path); !ok {
-		_ = os.MkdirAll(path, 0666)
-	}
-}
-
-func (bqo *BqOutput) tableName(d time.Time) string {
-	return bqo.config.TableId + formatDate(d)
-}
-
 func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 	var (
 		payload []byte
 		f       *os.File
 		oldDay  time.Time
+		now     time.Time
+		ok      = true
 	)
+
+	inChan := or.InChan()
+	midnightTicker := midnightTickerUpdate()
 
 	buf := bytes.NewBuffer(nil)
 	fileOp := os.O_CREATE | os.O_APPEND | os.O_WRONLY
@@ -92,38 +82,44 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		logError(or, "Initialize Table", err)
 	}
 
-	for pack := range or.InChan() {
-		payload = []byte(pack.Message.GetPayload())
-		pack.Recycle()
+	for ok {
+		select {
+		case pack, ok = <-inChan:
+			if !ok {
+				break
+			}
 
-		// Time Check
-		if now := time.Now().Local(); isNewDay(oldDay, now) {
+			payload = []byte(pack.Message.GetPayload())
+			pack.Recycle()
+
+			// Write to both file and buffer
+			if _, err = f.Write(payload); err != nil {
+				logError(or, "Write to File", err)
+			}
+			if _, err = buf.Write(payload); err != nil {
+				logError(or, "Write to Buffer", err)
+			}
+
+			// Upload Stuff (1mb)
+			if buf.Len() > MAX_BUFFER_SIZE {
+				f.Close() // Close file for uploading
+				bqo.UploadAndReset(buf, fp, oldDay, or)
+				f, _ = os.OpenFile(fp, fileOp, 0666)
+			}
+		case <-midnightTicker.C:
+			// Time Check
+			now = time.Now().Local()
 			if buf.Len() > 0 {
 				f.Close() // Close file for uploading
 				bqo.UploadAndReset(buf, fp, oldDay, or)
 				f, _ = os.OpenFile(fp, fileOp, 0666)
 			}
-			logUpdate(or, "Midnight ticked. Creating new table: "+bqo.tableName(now))
+			logUpdate(or, "Midnight! Creating new table: "+bqo.tableName(now))
 
 			if err = bqo.bu.CreateTable(bqo.tableName(now), bqo.schema); err != nil {
 				logError(or, "Create New Day Table", err)
 			}
 			oldDay = now
-		}
-
-		// Write Stuff
-		if _, err = f.Write(payload); err != nil {
-			logError(or, "Write to File", err)
-		}
-		if _, err = buf.Write(payload); err != nil {
-			logError(or, "Write to Buffer", err)
-		}
-
-		// Upload Stuff (1mb)
-		if buf.Len() > 1000 {
-			f.Close() // Close file for uploading
-			bqo.UploadAndReset(buf, fp, oldDay, or)
-			f, _ = os.OpenFile(fp, fileOp, 0666)
 		}
 	}
 
@@ -196,8 +192,36 @@ func logError(or OutputRunner, title string, err error) {
 	or.LogMessage(fmt.Sprintf("%s - Error -: %s", title, err))
 }
 
-func isNewDay(t1 time.Time, t2 time.Time) bool {
-	return (t1.Year() != t2.Year() || t1.Month() != t2.Month() || t1.Day() != t2.Day())
+func exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func mkDirectories(path string) {
+	if ok, _ := exists(path); !ok {
+		_ = os.MkdirAll(path, 0666)
+	}
+}
+
+func midnightTickerUpdate() *time.Ticker {
+	nextTick := time.Date(time.Now().Year(), time.Now().Month(),
+		time.Now().Day(), HOUR_TO_TICK, MINUTE_TO_TICK, SECOND_TO_TICK,
+		0, time.Local)
+	if !nextTick.After(time.Now()) {
+		nextTick = nextTick.Add(INTERVAL_PERIOD)
+	}
+	diff := nextTick.Sub(time.Now())
+	return time.NewTicker(diff)
+}
+
+func (bqo *BqOutput) tableName(d time.Time) string {
+	return bqo.config.TableId + formatDate(d)
 }
 
 func init() {
