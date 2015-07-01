@@ -13,12 +13,14 @@ import (
 	bigquery "google.golang.org/api/bigquery/v2"
 )
 
+// Holds all the information needed for BigQuery operations
 type BqUploader struct {
 	bq        *bigquery.Service
 	projectId string
 	datasetId string
 }
 
+// Initializes all the bigquery data needed
 func NewBqUploader(pkey []byte, projectId string, datasetId string, serviceEmail string) *BqUploader {
 	conf := &jwt.Config{
 		Email:      serviceEmail,
@@ -82,6 +84,7 @@ func (bu *BqUploader) InsertRows(tableId string, list []map[string]bigquery.Json
 	return err
 }
 
+// SendInsert
 func (bu *BqUploader) SendInsert(tableId string, rows []*bigquery.TableDataInsertAllRequestRows) error {
 	req := &bigquery.TableDataInsertAllRequest{
 		Rows: rows,
@@ -98,7 +101,9 @@ func (bu *BqUploader) SendInsert(tableId string, rows []*bigquery.TableDataInser
 	return nil
 }
 
-// InsertRow inserts a new row into the desired project, dataset and table or returns an error
+// InsertRow prepares and delegates to send a single row into a BigQuery Table.
+// Arguments: projectID, datasetID and tableID
+// Returns an error if problematic
 func (bu *BqUploader) InsertRow(tableId string, rowData map[string]bigquery.JsonValue) error {
 	rows := []*bigquery.TableDataInsertAllRequestRows{
 		{
