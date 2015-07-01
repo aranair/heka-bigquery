@@ -19,9 +19,9 @@ type BqUploader struct {
 	datasetId string
 }
 
-func NewBqUploader(pkey []byte, projectId string, datasetId string) *BqUploader {
+func NewBqUploader(pkey []byte, projectId string, datasetId string, serviceEmail string) *BqUploader {
 	conf := &jwt.Config{
-		Email:      "1022153460529-lism2u2cvjuruicuue51krv7sbr2cted@developer.gserviceaccount.com",
+		Email:      serviceEmail,
 		PrivateKey: pkey,
 		Scopes: []string{
 			bigquery.BigqueryScope,

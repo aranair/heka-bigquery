@@ -26,6 +26,7 @@ type BqOutputConfig struct {
 	ProjectId      string `toml:"project_id"`
 	DatasetId      string `toml:"dataset_id"`
 	TableId        string `toml:"table_id"`
+	ServiceEmail   string `toml:"service_email"`
 	PemFilePath    string `toml:"pem_file_path"`
 	SchemaFilePath string `toml:"schema_file_path"`
 	BufferPath     string `toml:"buffer_path"`
@@ -46,6 +47,7 @@ func (bqo *BqOutput) ConfigStruct() interface{} {
 func (bqo *BqOutput) Init(config interface{}) (err error) {
 	bqo.config = config.(*BqOutputConfig)
 
+	serviceEmail, _ := ioutil.ReadFile(bqo.config.ServiceEmail)
 	pkey, _ := ioutil.ReadFile(bqo.config.PemFilePath)
 	schema, _ := ioutil.ReadFile(bqo.config.SchemaFilePath)
 
