@@ -17,6 +17,8 @@ Private key for BigQuery is specified by a pkcs12 format PEM file that was conve
 
 Table names in BigQuery will {dataset_id}/{table_id}{date_stamp}. date_stamp formats as such: 20151230
 
+If no Encoder is specified in TOML, then the message Payload is extracted and sent.
+
 ## Sample TOML file (with Kafka as input source):
 
 ```
