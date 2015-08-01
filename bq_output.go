@@ -116,14 +116,24 @@ func (bqo *BqOutput) Run(or OutputRunner, h PluginHelper) (err error) {
 		logError(or, "Initialize Table", err)
 	}
 
+	encoder := or.Encoder()
 	for ok {
 		select {
 		case pack, ok = <-inChan:
 			if !ok {
 				break
 			}
-			payload = []byte(pack.Message.GetPayload())
-			pack.Recycle()
+			if encoder != nil {
+				payload, err = or.Encode(pack)
+				if err != nil {
+					or.LogError(err)
+					pack.Recycle()
+					continue
+				}
+			} else {
+				payload = []byte(pack.Message.GetPayload())
+				pack.Recycle()
+			}
 
 			// Write to both file and buffer
 			if _, err = f.Write(payload); err != nil {
